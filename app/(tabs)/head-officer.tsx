@@ -1,14 +1,51 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, SafeAreaView, ScrollView, StatusBar, TouchableOpacity, KeyboardAvoidingView, Platform, Alert } from 'react-native';
-import { Button, TextInput, HelperText, Appbar, Checkbox, Dialog, Portal, Provider as PaperProvider, List, Searchbar, Card, Avatar, Chip, ActivityIndicator } from 'react-native-paper';
+import { 
+  StyleSheet, 
+  View, 
+  Text, 
+  SafeAreaView, 
+  ScrollView, 
+  StatusBar, 
+  TouchableOpacity, 
+  KeyboardAvoidingView, 
+  Platform, 
+  Alert,
+  Image
+} from 'react-native';
+import { 
+  Button, 
+  TextInput, 
+  HelperText, 
+  Appbar, 
+  Checkbox, 
+  Dialog, 
+  Portal, 
+  Provider as PaperProvider,
+  ActivityIndicator 
+} from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/Colors';
 import { LinearGradient } from 'expo-linear-gradient';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, getDocs, query, where, doc, getDoc, Timestamp, updateDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-import DropDown from 'react-native-paper-dropdown';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  getDocs, 
+  query, 
+  where, 
+  doc, 
+  getDoc, 
+  Timestamp, 
+  updateDoc,
+  setDoc 
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  createUserWithEmailAndPassword, 
+  updateProfile 
+} from 'firebase/auth';
 
 // Your Firebase configuration
 const firebaseConfig = {
@@ -26,331 +63,192 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// Types for our data
-interface Equipment {
-  id: string;
-  name: string;
-  type: string;
-  serialNumber: string;
-  status: string;
-  condition: string;
-  lastChecked: Timestamp;
-  assignedTo?: string;
-  assignedToName?: string;
-  departmentId: string;
-}
-
-interface Officer {
-  id: string;
-  uid: string;
-  firstName: string;
-  lastName: string;
-  badgeNumber: string;
-  departmentId: string;
-  role: string;
-  email: string;
-}
-
-export default function Handover() {
+export default function HeadOfficer() {
   const router = useRouter();
+  
+  // Form state
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [badgeNumber, setBadgeNumber] = useState('');
+  const [phone, setPhone] = useState('');
+  const [department, setDepartment] = useState('');
+  const [agreeToTerms, setAgreeToTerms] = useState(false);
+  
+  // UI state
   const [loading, setLoading] = useState(false);
-  const [loadingOfficers, setLoadingOfficers] = useState(false);
-  const [loadingEquipment, setLoadingEquipment] = useState(false);
-  const [officers, setOfficers] = useState<Officer[]>([]);
-  const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [filteredEquipment, setFilteredEquipment] = useState<Equipment[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOfficer, setSelectedOfficer] = useState('');
-  const [recipientName, setRecipientName] = useState('');
-  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
-  const [handoverNotes, setHandoverNotes] = useState('');
-  const [showOfficerDropDown, setShowOfficerDropDown] = useState(false);
-  const [officerDropdownList, setOfficerDropdownList] = useState<{label: string, value: string}[]>([]);
   const [dialogVisible, setDialogVisible] = useState(false);
-  const [currentUser, setCurrentUser] = useState<{id: string, name: string} | null>(null);
-  const [departmentId, setDepartmentId] = useState('');
   
   // Error states
-  const [officerError, setOfficerError] = useState('');
-  const [equipmentError, setEquipmentError] = useState('');
-  const [notesError, setNotesError] = useState('');
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const user = auth.currentUser;
-        if (!user) {
-          Alert.alert('Error', 'Not logged in');
-          router.replace('/');
-          return;
-        }
-
-        // Get current user data
-        const officersRef = collection(db, 'officers');
-        const q = query(officersRef, where('uid', '==', user.uid));
-        const querySnapshot = await getDocs(q);
-        
-        if (querySnapshot.empty) {
-          Alert.alert('Error', 'User profile not found');
-          return;
-        }
-
-        const userData = querySnapshot.docs[0].data();
-        const userDeptId = userData.departmentId;
-        
-        setCurrentUser({
-          id: user.uid,
-          name: `${userData.firstName} ${userData.lastName}`
-        });
-        
-        setDepartmentId(userDeptId);
-        
-        // Now fetch data based on department
-        fetchOfficers(userDeptId);
-        fetchEquipment(userDeptId);
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-        if (error && typeof error === 'object' && 'message' in error) {
-          Alert.alert('Error', String(error.message));
-        } else {
-          Alert.alert('Error', 'Failed to load user data. Please try again.');
-        }
-      }
-    };
-
-    fetchUserData();
-  }, []);
-
-  const fetchOfficers = async (deptId: string) => {
-    setLoadingOfficers(true);
-    try {
-      const officersRef = collection(db, 'officers');
-      const q = query(officersRef, where('departmentId', '==', deptId));
-      const querySnapshot = await getDocs(q);
-      
-      const officersList: Officer[] = [];
-      const dropdownList: {label: string, value: string}[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data() as Omit<Officer, 'id'>;
-        const officer = {
-          id: doc.id,
-          ...data
-        };
-        
-        // Don't include current user in the list
-        if (officer.uid !== auth.currentUser?.uid) {
-          officersList.push(officer);
-          dropdownList.push({
-            label: `${data.firstName} ${data.lastName} (${data.badgeNumber})`,
-            value: officer.uid
-          });
-        }
-      });
-      
-      setOfficers(officersList);
-      setOfficerDropdownList(dropdownList);
-    } catch (error) {
-      console.error("Error fetching officers:", error);
-      if (error && typeof error === 'object' && 'message' in error) {
-        Alert.alert('Error', String(error.message));
-      } else {
-        Alert.alert('Error', 'Failed to load officers. Please try again.');
-      }
-    } finally {
-      setLoadingOfficers(false);
-    }
-  };
-
-  const fetchEquipment = async (deptId: string) => {
-    setLoadingEquipment(true);
-    try {
-      const equipmentRef = collection(db, 'equipment');
-      const q = query(
-        equipmentRef, 
-        where('departmentId', '==', deptId),
-        where('assignedTo', '==', auth.currentUser?.uid)
-      );
-      const querySnapshot = await getDocs(q);
-      
-      const equipmentList: Equipment[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        const data = doc.data() as Omit<Equipment, 'id'>;
-        equipmentList.push({
-          id: doc.id,
-          ...data
-        });
-      });
-      
-      setEquipment(equipmentList);
-      setFilteredEquipment(equipmentList);
-    } catch (error) {
-      console.error("Error fetching equipment:", error);
-      if (error && typeof error === 'object' && 'message' in error) {
-        Alert.alert('Error', String(error.message));
-      } else {
-        Alert.alert('Error', 'Failed to load equipment. Please try again.');
-      }
-    } finally {
-      setLoadingEquipment(false);
-    }
-  };
-
-  const onChangeSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim() === '') {
-      setFilteredEquipment(equipment);
-    } else {
-      const filtered = equipment.filter(
-        item => 
-          item.name.toLowerCase().includes(query.toLowerCase()) ||
-          item.serialNumber.toLowerCase().includes(query.toLowerCase()) ||
-          item.type.toLowerCase().includes(query.toLowerCase())
-      );
-      setFilteredEquipment(filtered);
-    }
-  };
-
-  const toggleEquipmentSelection = (id: string) => {
-    if (selectedEquipment.includes(id)) {
-      setSelectedEquipment(selectedEquipment.filter(itemId => itemId !== id));
-    } else {
-      setSelectedEquipment([...selectedEquipment, id]);
-    }
-  };
-
+  const [firstNameError, setFirstNameError] = useState('');
+  const [lastNameError, setLastNameError] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [confirmPasswordError, setConfirmPasswordError] = useState('');
+  const [badgeNumberError, setBadgeNumberError] = useState('');
+  const [phoneError, setPhoneError] = useState('');
+  const [departmentError, setDepartmentError] = useState('');
+  const [termsError, setTermsError] = useState('');
+  
   const validateForm = () => {
     let isValid = true;
-
-    if (!selectedOfficer) {
-      setOfficerError('Please select an officer to hand over equipment to');
+    
+    // First name validation
+    if (!firstName.trim()) {
+      setFirstNameError('First name is required');
       isValid = false;
     } else {
-      setOfficerError('');
+      setFirstNameError('');
     }
-
-    if (selectedEquipment.length === 0) {
-      setEquipmentError('Please select at least one equipment item');
+    
+    // Last name validation
+    if (!lastName.trim()) {
+      setLastNameError('Last name is required');
       isValid = false;
     } else {
-      setEquipmentError('');
+      setLastNameError('');
     }
-
-    if (!handoverNotes.trim()) {
-      setNotesError('Please provide handover notes for documentation');
+    
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email.trim()) {
+      setEmailError('Email is required');
+      isValid = false;
+    } else if (!emailRegex.test(email)) {
+      setEmailError('Please enter a valid email address');
       isValid = false;
     } else {
-      setNotesError('');
+      setEmailError('');
     }
-
+    
+    // Password validation
+    if (!password) {
+      setPasswordError('Password is required');
+      isValid = false;
+    } else if (password.length < 8) {
+      setPasswordError('Password must be at least 8 characters');
+      isValid = false;
+    } else {
+      setPasswordError('');
+    }
+    
+    // Confirm password validation
+    if (!confirmPassword) {
+      setConfirmPasswordError('Please confirm your password');
+      isValid = false;
+    } else if (confirmPassword !== password) {
+      setConfirmPasswordError('Passwords do not match');
+      isValid = false;
+    } else {
+      setConfirmPasswordError('');
+    }
+    
+    // Badge number validation
+    if (!badgeNumber.trim()) {
+      setBadgeNumberError('Badge number is required');
+      isValid = false;
+    } else {
+      setBadgeNumberError('');
+    }
+    
+    // Phone validation
+    const phoneRegex = /^\d{10}$/;
+    if (!phone.trim()) {
+      setPhoneError('Phone number is required');
+      isValid = false;
+    } else if (!phoneRegex.test(phone.replace(/\D/g, ''))) {
+      setPhoneError('Please enter a valid 10-digit phone number');
+      isValid = false;
+    } else {
+      setPhoneError('');
+    }
+    
+    // Department validation
+    if (!department.trim()) {
+      setDepartmentError('Please enter your department');
+      isValid = false;
+    } else {
+      setDepartmentError('');
+    }
+    
+    // Terms validation
+    if (!agreeToTerms) {
+      setTermsError('You must agree to the terms and conditions');
+      isValid = false;
+    } else {
+      setTermsError('');
+    }
+    
     return isValid;
   };
-
-  const handleOfficerChange = (value: string) => {
-    setSelectedOfficer(value);
-    
-    // Find the officer name for display
-    const officer = officers.find(o => o.uid === value);
-    if (officer) {
-      setRecipientName(`${officer.firstName} ${officer.lastName}`);
-    }
-  };
-
-  const handleHandover = async () => {
+  
+  const handleRegister = async () => {
     if (!validateForm()) {
       return;
     }
-
+    
     setLoading(true);
     try {
-      // Create handover record
-      const handoverRef = await addDoc(collection(db, 'handovers'), {
-        fromOfficerId: auth.currentUser?.uid,
-        fromOfficerName: currentUser?.name,
-        toOfficerId: selectedOfficer,
-        toOfficerName: recipientName,
-        equipmentIds: selectedEquipment,
-        notes: handoverNotes,
-        status: 'pending',
-        timestamp: Timestamp.now(),
-        departmentId: departmentId
+      // Create user account
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Update profile
+      await updateProfile(user, {
+        displayName: `${firstName} ${lastName}`
       });
-
-      // Update each equipment item
-      const batch = [];
-      for (const equipId of selectedEquipment) {
-        const equipRef = doc(db, 'equipment', equipId);
-        batch.push(
-          updateDoc(equipRef, {
-            assignedTo: selectedOfficer,
-            assignedToName: recipientName,
-            status: 'pending_transfer',
-            lastUpdated: Timestamp.now(),
-            handoverId: handoverRef.id
-          })
-        );
-      }
-
-      await Promise.all(batch);
+      
+      // Create a unique ID for the officer document
+      const officerId = user.uid;
+      
+      // Save officer details to Firestore with document ID matching the user UID
+      await setDoc(doc(db, 'officers', officerId), {
+        uid: user.uid,
+        firstName: firstName,
+        lastName: lastName,
+        email: email,
+        badgeNumber: badgeNumber,
+        phone: phone,
+        department: department,
+        role: 'head_officer',
+        createdAt: Timestamp.now(),
+        status: 'active'
+      });
+      
+      // Also save to the 5PSSw... collection for reference
+      const customDocRef = doc(db, '5PSSwEiFiPVaAfaIR4dB', officerId);
+      await setDoc(customDocRef, {
+        badgeNumber: badgeNumber,
+        name: `${firstName} ${lastName}`,
+        department: department,
+        phone: phone,
+        email: email,
+        role: 'head_officer',
+        createdAt: Timestamp.now(),
+        status: 'active'
+      });
       
       setLoading(false);
       setDialogVisible(true);
     } catch (error) {
       setLoading(false);
-      console.error("Error processing handover:", error);
+      console.error("Error registering user:", error);
       if (error && typeof error === 'object' && 'message' in error) {
-        Alert.alert('Error', String(error.message));
+        Alert.alert('Registration Error', String(error.message));
       } else {
-        Alert.alert('Error', 'Failed to process handover. Please try again.');
+        Alert.alert('Registration Error', 'Failed to register. Please try again.');
       }
     }
   };
-
+  
   const handleDialogClose = () => {
     setDialogVisible(false);
-    setSelectedEquipment([]);
-    setSelectedOfficer('');
-    setRecipientName('');
-    setHandoverNotes('');
-    
-    // Refresh equipment list
-    fetchEquipment(departmentId);
-    
-    // Navigate to dashboard or handover history
+    // Navigate to dashboard
     router.replace('/dashboard');
   };
-
-  const getEquipmentStatusChip = (status: string) => {
-    let color = '';
-    
-    switch(status) {
-      case 'available':
-        color = 'green';
-        break;
-      case 'in_use':
-        color = 'blue';
-        break;
-      case 'maintenance':
-        color = 'orange';
-        break;
-      case 'pending_transfer':
-        color = 'purple';
-        break;
-      default:
-        color = 'gray';
-    }
-    
-    return (
-      <Chip 
-        style={{backgroundColor: color + '20'}} 
-        textStyle={{color}}
-      >
-        {status.replace('_', ' ')}
-      </Chip>
-    );
-  };
-
+  
   return (
     <PaperProvider>
       <View style={styles.container}>
@@ -358,7 +256,7 @@ export default function Handover() {
         
         <Appbar.Header style={styles.appbar}>
           <Appbar.BackAction onPress={() => router.back()} color={Colors.white} />
-          <Appbar.Content title="Equipment Handover" color={Colors.white} />
+          <Appbar.Content title="Head Officer Registration" color={Colors.white} />
         </Appbar.Header>
         
         <SafeAreaView style={styles.safeArea}>
@@ -378,155 +276,189 @@ export default function Handover() {
                   style={styles.headerGradient}
                 >
                   <MaterialCommunityIcons 
-                    name="swap-horizontal" 
+                    name="shield-account" 
                     size={60} 
                     color={Colors.white}
                   />
-                  <Text style={styles.headerTitle}>Equipment Handover</Text>
+                  <Text style={styles.headerTitle}>Head Officer Registration</Text>
                   <Text style={styles.headerSubtitle}>
-                    Transfer equipment to another officer with proper documentation
+                    Create an account to manage your department's resources and personnel
                   </Text>
                 </LinearGradient>
               </View>
-
-              {/* Form Section */}
+              
+              {/* Registration Form */}
               <View style={styles.formContainer}>
-                <Text style={styles.sectionTitle}>Handover Details</Text>
+                <Text style={styles.sectionTitle}>Personal Information</Text>
                 
-                <Card style={styles.infoCard}>
-                  <Card.Content>
-                    <Text style={styles.infoLabel}>From Officer:</Text>
-                    <Text style={styles.infoValue}>{currentUser?.name || 'Loading...'}</Text>
-                  </Card.Content>
-                </Card>
-                
-                <View style={styles.dropdownContainer}>
-                  <Text style={styles.inputLabel}>Recipient Officer</Text>
-                  {loadingOfficers ? (
-                    <ActivityIndicator animating={true} color={Colors.primary} />
-                  ) : (
-                    <DropDown
-                      label={"Select Recipient Officer"}
-                      mode={"outlined"}
-                      visible={showOfficerDropDown}
-                      showDropDown={() => setShowOfficerDropDown(true)}
-                      onDismiss={() => setShowOfficerDropDown(false)}
-                      value={selectedOfficer}
-                      setValue={handleOfficerChange}
-                      list={officerDropdownList}
+                <View style={styles.row}>
+                  <View style={styles.halfColumn}>
+                    <TextInput
+                      label="First Name"
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      mode="outlined"
+                      style={styles.input}
+                      error={!!firstNameError}
+                      left={<TextInput.Icon icon="account" />}
+                      theme={{ colors: { text: '#000000', placeholder: '#555555' } }}
                     />
-                  )}
-                  {!!officerError && <HelperText type="error">{officerError}</HelperText>}
+                    {!!firstNameError && <HelperText type="error" style={styles.errorText}>{firstNameError}</HelperText>}
+                  </View>
+                  
+                  <View style={styles.halfColumn}>
+                    <TextInput
+                      label="Last Name"
+                      value={lastName}
+                      onChangeText={setLastName}
+                      mode="outlined"
+                      style={styles.input}
+                      error={!!lastNameError}
+                      left={<TextInput.Icon icon="account" />}
+                      theme={{ colors: { text: '#000000', placeholder: '#555555' } }}
+                    />
+                    {!!lastNameError && <HelperText type="error" style={styles.errorText}>{lastNameError}</HelperText>}
+                  </View>
                 </View>
                 
                 <TextInput
-                  label="Handover Notes"
-                  value={handoverNotes}
-                  onChangeText={setHandoverNotes}
+                  label="Email Address"
+                  value={email}
+                  onChangeText={setEmail}
                   mode="outlined"
                   style={styles.input}
-                  multiline
-                  numberOfLines={4}
-                  error={!!notesError}
-                  left={<TextInput.Icon icon="text-box" />}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  error={!!emailError}
+                  left={<TextInput.Icon icon="email" />}
+                  theme={{ colors: { text: '#000000', placeholder: '#555555' } }}
                 />
-                {!!notesError && <HelperText type="error">{notesError}</HelperText>}
-                <HelperText type="info">
-                  Please include condition details and any relevant information
-                </HelperText>
-
-                <Text style={[styles.sectionTitle, {marginTop: 20}]}>Select Equipment for Handover</Text>
+                {!!emailError && <HelperText type="error" style={styles.errorText}>{emailError}</HelperText>}
                 
-                {loadingEquipment ? (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={Colors.primary} />
-                    <Text style={styles.loadingText}>Loading your equipment...</Text>
-                  </View>
-                ) : (
-                  <>
-                    <Searchbar
-                      placeholder="Search equipment"
-                      onChangeText={onChangeSearch}
-                      value={searchQuery}
-                      style={styles.searchBar}
+                <View style={styles.row}>
+                  <View style={styles.halfColumn}>
+                    <TextInput
+                      label="Password"
+                      value={password}
+                      onChangeText={setPassword}
+                      mode="outlined"
+                      style={styles.input}
+                      secureTextEntry
+                      error={!!passwordError}
+                      left={<TextInput.Icon icon="lock" />}
+                      theme={{ colors: { text: '#000000', placeholder: '#555555' } }}
                     />
-                    
-                    {filteredEquipment.length === 0 ? (
-                      <View style={styles.noItemsContainer}>
-                        <MaterialCommunityIcons name="inbox" size={60} color={Colors.grey} />
-                        <Text style={styles.noItemsText}>No equipment items found</Text>
-                      </View>
-                    ) : (
-                      <>
-                        <Text style={styles.selectionInfo}>
-                          Selected: {selectedEquipment.length} out of {filteredEquipment.length} items
-                        </Text>
-                        {!!equipmentError && <HelperText type="error">{equipmentError}</HelperText>}
-                        
-                        <View style={styles.equipmentList}>
-                          {filteredEquipment.map((item) => (
-                            <TouchableOpacity 
-                              key={item.id}
-                              style={[
-                                styles.equipmentCard,
-                                selectedEquipment.includes(item.id) && styles.selectedCard
-                              ]}
-                              onPress={() => toggleEquipmentSelection(item.id)}
-                            >
-                              <View style={styles.equipmentCardContent}>
-                                <Avatar.Icon 
-                                  size={40} 
-                                  icon={
-                                    item.type === 'firearm' ? 'pistol' : 
-                                    item.type === 'vehicle' ? 'car' : 
-                                    item.type === 'radio' ? 'radio' : 
-                                    item.type === 'armor' ? 'shield' : 
-                                    'package-variant-closed'
-                                  } 
-                                  style={styles.equipmentIcon}
-                                />
-                                <View style={styles.equipmentInfo}>
-                                  <Text style={styles.equipmentName}>{item.name}</Text>
-                                  <Text style={styles.equipmentSerial}>SN: {item.serialNumber}</Text>
-                                  {getEquipmentStatusChip(item.status)}
-                                </View>
-                                <Checkbox
-                                  status={selectedEquipment.includes(item.id) ? 'checked' : 'unchecked'}
-                                  onPress={() => toggleEquipmentSelection(item.id)}
-                                  color={Colors.primary}
-                                />
-                              </View>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                      </>
-                    )}
-                  </>
-                )}
+                    {!!passwordError && <HelperText type="error" style={styles.errorText}>{passwordError}</HelperText>}
+                  </View>
+                  
+                  <View style={styles.halfColumn}>
+                    <TextInput
+                      label="Confirm Password"
+                      value={confirmPassword}
+                      onChangeText={setConfirmPassword}
+                      mode="outlined"
+                      style={styles.input}
+                      secureTextEntry
+                      error={!!confirmPasswordError}
+                      left={<TextInput.Icon icon="lock-check" />}
+                      theme={{ colors: { text: '#000000', placeholder: '#555555' } }}
+                    />
+                    {!!confirmPasswordError && <HelperText type="error" style={styles.errorText}>{confirmPasswordError}</HelperText>}
+                  </View>
+                </View>
+                
+                <Text style={[styles.sectionTitle, {marginTop: 20}]}>Professional Details</Text>
+                
+                <View style={styles.row}>
+                  <View style={styles.halfColumn}>
+                    <TextInput
+                      label="Badge Number"
+                      value={badgeNumber}
+                      onChangeText={setBadgeNumber}
+                      mode="outlined"
+                      style={styles.input}
+                      error={!!badgeNumberError}
+                      left={<TextInput.Icon icon="badge-account" />}
+                      theme={{ colors: { text: '#000000', placeholder: '#555555' } }}
+                    />
+                    {!!badgeNumberError && <HelperText type="error" style={styles.errorText}>{badgeNumberError}</HelperText>}
+                  </View>
+                  
+                  <View style={styles.halfColumn}>
+                    <TextInput
+                      label="Phone Number"
+                      value={phone}
+                      onChangeText={setPhone}
+                      mode="outlined"
+                      style={styles.input}
+                      keyboardType="phone-pad"
+                      error={!!phoneError}
+                      left={<TextInput.Icon icon="phone" />}
+                      theme={{ colors: { text: '#000000', placeholder: '#555555' } }}
+                    />
+                    {!!phoneError && <HelperText type="error" style={styles.errorText}>{phoneError}</HelperText>}
+                  </View>
+                </View>
+                
+                {/* Changed from dropdown to text input for department */}
+                <TextInput
+                  label="Department"
+                  value={department}
+                  onChangeText={setDepartment}
+                  mode="outlined"
+                  style={styles.input}
+                  error={!!departmentError}
+                  left={<TextInput.Icon icon="office-building" />}
+                  placeholder="Enter your department name"
+                  theme={{ colors: { text: '#000000', placeholder: '#555555' } }}
+                />
+                {!!departmentError && <HelperText type="error" style={styles.errorText}>{departmentError}</HelperText>}
+                
+                <View style={styles.termsContainer}>
+                  <Checkbox.Item
+                    label="I agree to the terms and conditions"
+                    status={agreeToTerms ? 'checked' : 'unchecked'}
+                    onPress={() => setAgreeToTerms(!agreeToTerms)}
+                    position="leading"
+                    color={Colors.primary}
+                    style={styles.checkbox}
+                    labelStyle={styles.checkboxLabel}
+                  />
+                  {!!termsError && <HelperText type="error" style={styles.errorText}>{termsError}</HelperText>}
+                  
+                  <TouchableOpacity onPress={() => Alert.alert('Terms and Conditions', 'By using this application, you agree to abide by department policies and regulations regarding the use of equipment and data privacy.')}>
+                    <Text style={styles.termsLink}>View Terms and Conditions</Text>
+                  </TouchableOpacity>
+                </View>
                 
                 <Button 
                   mode="contained" 
                   style={styles.button} 
                   labelStyle={styles.buttonLabel}
-                  onPress={handleHandover}
+                  onPress={handleRegister}
                   loading={loading}
-                  disabled={loading || selectedEquipment.length === 0 || !selectedOfficer}
+                  disabled={loading}
                 >
-                  Process Equipment Handover
+                  Register as Head Officer
                 </Button>
+                
+                <TouchableOpacity style={styles.loginLink} onPress={() => router.replace('/')}>
+                  <Text style={styles.loginText}>Already have an account? Login</Text>
+                </TouchableOpacity>
               </View>
             </ScrollView>
           </KeyboardAvoidingView>
         </SafeAreaView>
-
+        
+        {/* Success Dialog */}
         <Portal>
           <Dialog visible={dialogVisible} onDismiss={handleDialogClose}>
-            <Dialog.Title>Handover Processed</Dialog.Title>
+            <Dialog.Title>Registration Successful</Dialog.Title>
             <Dialog.Content>
-              <Text>Equipment handover has been successfully initiated. The recipient officer will need to accept the transfer.</Text>
+              <Text style={styles.dialogText}>Your head officer account has been created successfully. You can now access the dashboard to manage your department.</Text>
             </Dialog.Content>
             <Dialog.Actions>
-              <Button onPress={handleDialogClose}>Return to Dashboard</Button>
+              <Button onPress={handleDialogClose}>Go to Dashboard</Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>
@@ -587,100 +519,43 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.text,
+    color: '#000000', // Darker color for section titles
     marginBottom: 15,
   },
-  infoCard: {
-    marginBottom: 15,
-    backgroundColor: Colors.white,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: Colors.grey,
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 5,
   },
-  infoValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  dropdownContainer: {
-    marginBottom: 15,
-  },
-  inputLabel: {
-    fontSize: 14,
-    color: Colors.text,
-    marginBottom: 8,
+  halfColumn: {
+    width: '48%',
   },
   input: {
-    marginBottom: 5,
+    marginBottom: 8,
     backgroundColor: Colors.white,
   },
-  searchBar: {
-    marginVertical: 10,
-    backgroundColor: Colors.white,
+  errorText: {
+    color: '#FF0000', // Bright red for errors
+    fontWeight: '500',
+    marginBottom: 8,
   },
-  equipmentList: {
-    marginVertical: 10,
+  termsContainer: {
+    marginVertical: 15,
   },
-  equipmentCard: {
-    backgroundColor: Colors.white,
-    borderRadius: 8,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: Colors.lightGrey,
+  checkbox: {
+    paddingHorizontal: 0,
+    backgroundColor: 'transparent',
   },
-  selectedCard: {
-    borderColor: Colors.primary,
-    borderWidth: 2,
-    backgroundColor: Colors.primary + '10',
+  checkboxLabel: {
+    color: '#000000', // Darker checkbox label color
+    fontSize: 15,
   },
-  equipmentCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-  },
-  equipmentIcon: {
-    backgroundColor: Colors.secondary,
-  },
-  equipmentInfo: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  equipmentName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  equipmentSerial: {
-    fontSize: 14,
-    color: Colors.grey,
-    marginBottom: 5,
-  },
-  noItemsContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 30,
-  },
-  noItemsText: {
-    color: Colors.grey,
-    fontSize: 16,
-    marginTop: 10,
-  },
-  selectionInfo: {
-    fontSize: 14,
-    color: Colors.secondary,
-    marginVertical: 10,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 30,
-  },
-  loadingText: {
-    color: Colors.grey,
-    fontSize: 16,
-    marginTop: 10,
+  termsLink: {
+    color: Colors.primary,
+    textDecorationLine: 'underline',
+    marginLeft: 50,
+    marginTop: 5,
+    fontWeight: '500',
   },
   button: {
     marginTop: 20,
@@ -692,5 +567,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     letterSpacing: 0.5,
+    color: Colors.white,
+  },
+  loginLink: {
+    marginTop: 15,
+    alignItems: 'center',
+  },
+  loginText: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dialogText: {
+    color: '#000000',
+    fontSize: 15,
+    lineHeight: 22,
   },
 });

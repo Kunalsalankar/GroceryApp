@@ -1,73 +1,56 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 
-// Define the User type for better type safety
-interface User {
-  displayName?: string; 
-  email?: string;
-}
-
-// The Auth Context type definition
+// Define the context type
 interface AuthContextType {
-  currentUser: User | null; // Fixed the syntax error here
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
+  currentUser: User | null;
+  loading: boolean;
 }
 
-// Create the context with undefined as initial value
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Create the context with default values
+const AuthContext = createContext<AuthContextType>({
+  currentUser: null,
+  loading: true
+});
 
-// The Auth Provider component that will wrap your application
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // State to track the current user
+// Custom hook to use the auth context
+export const useAuth = () => {
+  return useContext(AuthContext);
+};
+
+// Props for the AuthProvider component
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+// AuthProvider component
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // Login function implementation
-  const login = async (email: string, password: string) => {
-    try {
-      // This is where you would normally call your authentication service
-      // For example: const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      
-      // Simulate successful login for now
-      setCurrentUser({ email, displayName: email.split('@')[0] });
-    } catch (error) {
-      console.error("Login failed:", error);
-      throw error; // Re-throw to let the component handle the error
-    }
-  };
+  useEffect(() => {
+    // Get the Firebase auth instance
+    const auth = getAuth();
+    
+    // Set up the auth state listener
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+      setLoading(false);
+    });
 
-  // Logout function implementation
-  const logout = async () => {
-    try {
-      // This is where you would normally call your authentication service
-      // For example: await signOut(auth);
-      
-      // Clear the user state
-      setCurrentUser(null);
-    } catch (error) {
-      console.error("Logout failed:", error);
-      throw error; // Re-throw to let the component handle the error
-    }
-  };
+    // Clean up subscription
+    return unsubscribe;
+  }, []);
 
-  // The value that will be available through the context
+  // Value to be provided by the context
   const value = {
     currentUser,
-    login,
-    logout
+    loading
   };
 
   return (
     <AuthContext.Provider value={value}>
-      {children}
+      {!loading && children}
     </AuthContext.Provider>
   );
-};
-
-// Custom hook to use the auth context
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

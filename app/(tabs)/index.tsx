@@ -43,8 +43,9 @@ export default function Index() {
     router.push('/officer');
   };
 
-  
-
+  const handleLogin = (): void => {
+    router.push('/login');
+  };
   
   return (
     <View style={styles.container}>
@@ -206,7 +207,36 @@ export default function Index() {
               </Card.Actions>
             </Card>
           </View>
-        
+          
+          {/* Divider */}
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <View style={styles.dividerTextContainer}>
+              <Text style={styles.dividerText}>OR</Text>
+            </View>
+            <View style={styles.dividerLine} />
+          </View>
+          
+          {/* Login Button Section */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              style={styles.loginButtonContainer} 
+              onPress={handleLogin}
+            >
+              <LinearGradient
+                colors={[PoliceColors.accent2, '#2980b9']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={[styles.gradientButton, styles.loginGradientButton]}
+              >
+                <View style={styles.loginButtonInner}>
+                  <Ionicons name="log-in-outline" size={20} color={PoliceColors.white} style={styles.loginIcon} />
+                  <Text style={styles.loginButtonText}>Login to Your Account</Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+            <Text style={styles.poweredByText}>Secure Authentication Powered by EquipTrack</Text>
+          </View>
           
           {/* Footer Section */}
           <View style={styles.footer}>
@@ -439,7 +469,26 @@ const styles = StyleSheet.create({
   },
   loginButtonContainer: {
     width: '85%',
+    borderRadius: 12,
+    overflow: 'hidden',
     marginBottom: 15,
+  },
+  loginGradientButton: {
+    paddingVertical: 14,
+  },
+  loginButtonInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loginIcon: {
+    marginRight: 10,
+  },
+  loginButtonText: {
+    color: PoliceColors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
+    letterSpacing: 0.5,
   },
   loginButton: {
     borderColor: PoliceColors.primary,
@@ -448,12 +497,6 @@ const styles = StyleSheet.create({
     padding: 14,
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-  },
-  loginButtonText: {
-    color: PoliceColors.primary,
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 0.5,
   },
   poweredByText: {
     color: PoliceColors.textLight,

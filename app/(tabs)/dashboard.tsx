@@ -178,19 +178,7 @@ export default function DashboardScreen(): React.ReactElement {
 
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         {/* Welcome section */}
-        <View style={styles.welcomeSection}>
-          <View>
-            <Text style={styles.welcomeText}>Welcome back,</Text>
-            <Text style={styles.userName}>Inspector Sharma</Text>
-          </View>
-          <TouchableOpacity 
-            style={styles.notificationButton}
-            onPress={() => router.push('/(tabs)/notifications' as any)}
-          >
-            <Ionicons name="notifications" size={24} color={PoliceColors.text} />
-            <Badge style={styles.badge}>3</Badge>
-          </TouchableOpacity>
-        </View>
+       
 
         {/* Modules Grid Section */}
         <Text style={styles.sectionTitle}>
