@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
   TextInput,
   Modal,
   ScrollView,
@@ -12,22 +12,20 @@ import {
   ActivityIndicator,
   SafeAreaView
 } from 'react-native';
-import { 
-  collection, 
-  addDoc, 
-  getDocs, 
-  query, 
-  orderBy, 
-  Timestamp, 
-  doc, 
-  getDoc, 
+import {
+  collection,
+  addDoc,
+  getDocs,
+  query,
+  orderBy,
+  Timestamp,
+  doc,
+  getDoc,
   updateDoc,
   where,
   deleteDoc
 } from 'firebase/firestore';
 import { db } from './firebaseConfig';
-// You can use icons from a React Native compatible library
-// For example: 
 import { Ionicons } from '@expo/vector-icons';
 
 // Define types for our data
@@ -132,13 +130,13 @@ const Stock: React.FC = () => {
     setLoading(true);
     try {
       const stockQuery = query(
-        collection(db, 'assets'), 
+        collection(db, 'assets'),
         orderBy('itemName', 'asc')
       );
-      
+
       const stockSnapshot = await getDocs(stockQuery);
       const items: StockItem[] = [];
-      
+
       stockSnapshot.forEach((doc) => {
         const data = doc.data() as Omit<StockItem, 'id'>;
         items.push({
@@ -146,7 +144,7 @@ const Stock: React.FC = () => {
           ...data
         });
       });
-      
+
       setStockItems(items);
     } catch (error) {
       console.error('Error fetching stock items:', error);
@@ -160,7 +158,7 @@ const Stock: React.FC = () => {
   const fetchStockHistory = async (itemId?: string) => {
     try {
       let historyQuery;
-      
+
       if (itemId) {
         historyQuery = query(
           collection(db, 'stock_history'),
@@ -173,10 +171,10 @@ const Stock: React.FC = () => {
           orderBy('timestamp', 'desc')
         );
       }
-      
+
       const historySnapshot = await getDocs(historyQuery);
       const history: StockHistory[] = [];
-      
+
       historySnapshot.forEach((doc) => {
         const data = doc.data() as Omit<StockHistory, 'id'>;
         history.push({
@@ -184,7 +182,7 @@ const Stock: React.FC = () => {
           ...data
         });
       });
-      
+
       setStockHistory(history);
     } catch (error) {
       console.error('Error fetching stock history:', error);
@@ -232,7 +230,7 @@ const Stock: React.FC = () => {
       };
 
       const docRef = await addDoc(collection(db, 'assets'), newItem);
-      
+
       // Add to history
       await addStockHistory(
         docRef.id,
@@ -257,9 +255,9 @@ const Stock: React.FC = () => {
         location: '',
         notes: ''
       });
-      
+
       showSnackbar('Inventory item added successfully', 'success');
-      
+
       fetchStockItems();
       fetchStockHistory();
     } catch (error) {
@@ -275,7 +273,7 @@ const Stock: React.FC = () => {
     try {
       const previousQuantity = selectedItem.quantity;
       const itemRef = doc(db, 'assets', selectedItem.id);
-      
+
       await updateDoc(itemRef, {
         ...formData,
         lastUpdated: Timestamp.now()
@@ -295,9 +293,9 @@ const Stock: React.FC = () => {
 
       setOpenEditDialog(false);
       setSelectedItem(null);
-      
+
       showSnackbar('Inventory item updated successfully', 'success');
-      
+
       fetchStockItems();
       fetchStockHistory();
     } catch (error) {
@@ -316,13 +314,13 @@ const Stock: React.FC = () => {
           text: "Cancel",
           style: "cancel"
         },
-        { 
-          text: "Delete", 
+        {
+          text: "Delete",
           style: "destructive",
           onPress: async () => {
             try {
               await deleteDoc(doc(db, 'assets', id));
-              
+
               // Add to history
               await addStockHistory(
                 id,
@@ -330,11 +328,11 @@ const Stock: React.FC = () => {
                 'Deleted',
                 quantity,
                 0,
-                `Item removed from inventory`
+                'Item removed from inventory'
               );
-              
+
               showSnackbar('Inventory item deleted successfully', 'success');
-              
+
               fetchStockItems();
               fetchStockHistory();
             } catch (error) {
@@ -387,7 +385,7 @@ const Stock: React.FC = () => {
     setSnackbarMessage(message);
     setSnackbarType(type);
     setSnackbarVisible(true);
-    
+
     // Auto hide after 3 seconds
     setTimeout(() => {
       setSnackbarVisible(false);
@@ -420,12 +418,12 @@ const Stock: React.FC = () => {
   const filteredItems = stockItems.filter(item => {
     const matchesCategory = categoryFilter ? item.category === categoryFilter : true;
     const matchesDepartment = departmentFilter ? item.department === departmentFilter : true;
-    const matchesSearch = searchQuery 
+    const matchesSearch = searchQuery
       ? item.itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.manufacturer.toLowerCase().includes(searchQuery.toLowerCase())
+      item.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.manufacturer.toLowerCase().includes(searchQuery.toLowerCase())
       : true;
-    
+
     return matchesCategory && matchesDepartment && matchesSearch;
   });
 
@@ -433,23 +431,23 @@ const Stock: React.FC = () => {
   const sortedItems = [...filteredItems].sort((a, b) => {
     let aValue: any = a[sortField as keyof StockItem];
     let bValue: any = b[sortField as keyof StockItem];
-    
+
     // Handle special cases for sorting
     if (sortField === 'purchaseDate' || sortField === 'lastUpdated') {
       aValue = (aValue as Timestamp).seconds;
       bValue = (bValue as Timestamp).seconds;
     }
-    
+
     if (typeof aValue === 'string' && typeof bValue === 'string') {
-      return sortDirection === 'asc' 
-        ? aValue.localeCompare(bValue) 
+      return sortDirection === 'asc'
+        ? aValue.localeCompare(bValue)
         : bValue.localeCompare(aValue);
     }
-    
+
     if (typeof aValue === 'number' && typeof bValue === 'number') {
       return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
     }
-    
+
     return 0;
   });
 
@@ -463,8 +461,8 @@ const Stock: React.FC = () => {
   const renderItem = ({ item }: { item: StockItem }) => (
     <View style={[
       styles.tableRow,
-      item.quantity === 0 ? styles.outOfStockRow : 
-      item.quantity <= item.minThreshold ? styles.lowStockRow : null
+      item.quantity === 0 ? styles.outOfStockRow :
+        item.quantity <= item.minThreshold ? styles.lowStockRow : null
     ]}>
       <View style={styles.tableCell}>
         <Text style={styles.itemName}>{item.itemName}</Text>
@@ -479,9 +477,9 @@ const Stock: React.FC = () => {
       <View style={styles.tableCell}>
         <Text style={[
           styles.quantityText,
-          item.quantity === 0 ? styles.errorText : 
-          item.quantity <= item.minThreshold ? styles.warningText : 
-          styles.successText
+          item.quantity === 0 ? styles.errorText :
+            item.quantity <= item.minThreshold ? styles.warningText :
+              styles.successText
         ]}>
           {item.quantity}
         </Text>
@@ -491,9 +489,9 @@ const Stock: React.FC = () => {
         <View style={[
           styles.statusBadge,
           item.status === 'Available' ? styles.successBadge :
-          item.status === 'Limited' ? styles.warningBadge :
-          item.status === 'Out of Stock' ? styles.errorBadge :
-          styles.defaultBadge
+            item.status === 'Limited' ? styles.warningBadge :
+              item.status === 'Out of Stock' ? styles.errorBadge :
+                styles.defaultBadge
         ]}>
           <Text style={styles.statusText}>{item.status}</Text>
         </View>
@@ -502,19 +500,19 @@ const Stock: React.FC = () => {
         <Text>{formatDate(item.lastUpdated)}</Text>
       </View>
       <View style={styles.actionCell}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={() => handleOpenEditDialog(item)}
         >
           <Ionicons name="create-outline" size={24} color="#2196F3" />
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={() => handleViewHistory(item.id)}
         >
           <Ionicons name="time-outline" size={24} color="#009688" />
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.actionButton}
           onPress={() => handleDeleteStock(item.id, item.itemName, item.quantity)}
         >
@@ -532,18 +530,17 @@ const Stock: React.FC = () => {
       <View style={[
         styles.historyBadge,
         item.action === 'Added' ? styles.successBadge :
-        item.action === 'Increased' ? styles.infoBadge :
-        item.action === 'Decreased' ? styles.warningBadge :
-        item.action === 'Deleted' ? styles.errorBadge :
-        styles.defaultBadge
+          item.action === 'Increased' ? styles.infoBadge :
+            item.action === 'Decreased' ? styles.warningBadge :
+              item.action === 'Deleted' ? styles.errorBadge :
+                styles.defaultBadge
       ]}>
         <Text style={styles.historyAction}>{item.action}</Text>
       </View>
       <Text style={styles.historyQuantity}>
         {item.previousQuantity} → {item.newQuantity}
       </Text>
-      <Text style={styles.historyUser}>{item.changedBy}</Text>
-      <Text style={styles.historyNotes}>{item.notes}</Text>
+
     </View>
   );
 
@@ -576,61 +573,37 @@ const Stock: React.FC = () => {
           value={searchQuery}
           onChangeText={setSearchQuery}
         />
-        
-        <View style={styles.pickerContainer}>
-          <Text style={styles.pickerLabel}>Category:</Text>
-          <TouchableOpacity 
-            style={styles.picker}
-            onPress={() => {
-              // In a real app, you'd show a proper dropdown/picker here
-              Alert.alert("Select Category", "", 
-                [
-                  {text: "All Categories", onPress: () => setCategoryFilter("")},
-                  ...categories.map(cat => ({
-                    text: cat,
-                    onPress: () => setCategoryFilter(cat)
-                  }))
-                ]
-              );
-            }}
-          >
-            <Text>{categoryFilter || "All Categories"}</Text>
-            <Ionicons name="chevron-down" size={16} />
-          </TouchableOpacity>
+
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Category *</Text>
+          <TextInput
+            style={styles.formInput}
+            value={formData.category}
+            onChangeText={(text) => handleFormChange('category', text)}
+            placeholder="Enter category"
+          />
         </View>
-        
-        <View style={styles.pickerContainer}>
-          <Text style={styles.pickerLabel}>Department:</Text>
-          <TouchableOpacity 
-            style={styles.picker}
-            onPress={() => {
-              // In a real app, you'd show a proper dropdown/picker here
-              Alert.alert("Select Department", "", 
-                [
-                  {text: "All Departments", onPress: () => setDepartmentFilter("")},
-                  ...departments.map(dept => ({
-                    text: dept,
-                    onPress: () => setDepartmentFilter(dept)
-                  }))
-                ]
-              );
-            }}
-          >
-            <Text>{departmentFilter || "All Departments"}</Text>
-            <Ionicons name="chevron-down" size={16} />
-          </TouchableOpacity>
+
+        <View style={styles.formGroup}>
+          <Text style={styles.formLabel}>Department</Text>
+          <TextInput
+            style={styles.formInput}
+            value={formData.department}
+            onChangeText={(text) => handleFormChange('department', text)}
+            placeholder="Enter department"
+          />
         </View>
-        
+
         <View style={styles.buttonContainer}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.addButton}
             onPress={() => setOpenAddDialog(true)}
           >
             <Ionicons name="add" size={20} color="#fff" />
             <Text style={styles.buttonText}>Add Item</Text>
           </TouchableOpacity>
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.refreshButton}
             onPress={() => fetchStockItems()}
           >
@@ -646,7 +619,7 @@ const Stock: React.FC = () => {
       ) : (
         <View style={styles.tableContainer}>
           <View style={styles.tableHeader}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerCell}
               onPress={() => handleSort('itemName')}
             >
@@ -657,7 +630,7 @@ const Stock: React.FC = () => {
                 </Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerCell}
               onPress={() => handleSort('category')}
             >
@@ -668,7 +641,7 @@ const Stock: React.FC = () => {
                 </Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerCell}
               onPress={() => handleSort('department')}
             >
@@ -679,7 +652,7 @@ const Stock: React.FC = () => {
                 </Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerCell}
               onPress={() => handleSort('quantity')}
             >
@@ -690,7 +663,7 @@ const Stock: React.FC = () => {
                 </Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerCell}
               onPress={() => handleSort('status')}
             >
@@ -701,7 +674,7 @@ const Stock: React.FC = () => {
                 </Text>
               )}
             </TouchableOpacity>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerCell}
               onPress={() => handleSort('lastUpdated')}
             >
@@ -716,7 +689,7 @@ const Stock: React.FC = () => {
               <Text style={styles.headerText}>Actions</Text>
             </View>
           </View>
-          
+
           {sortedItems.length > 0 ? (
             <FlatList
               data={sortedItems}
@@ -740,13 +713,13 @@ const Stock: React.FC = () => {
     <View style={styles.tabContent}>
       <View style={styles.historyHeader}>
         <Text style={styles.historyTitle}>
-          {historyForItem 
+          {historyForItem
             ? `History for ${stockItems.find(item => item.id === historyForItem)?.itemName || 'Selected Item'}`
             : 'Complete Inventory History'
           }
         </Text>
         {historyForItem && (
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.viewAllButton}
             onPress={() => {
               setHistoryForItem(null);
@@ -757,7 +730,7 @@ const Stock: React.FC = () => {
           </TouchableOpacity>
         )}
       </View>
-      
+
       {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#2196F3" />
@@ -772,7 +745,7 @@ const Stock: React.FC = () => {
             <Text style={styles.historyHeaderText}>Changed By</Text>
             <Text style={styles.historyHeaderText}>Notes</Text>
           </View>
-          
+
           {stockHistory.length > 0 ? (
             <FlatList
               data={stockHistory}
@@ -801,7 +774,7 @@ const Stock: React.FC = () => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Add New Inventory Item</Text>
-          
+
           <ScrollView style={styles.formContainer}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Item Name *</Text>
@@ -812,45 +785,28 @@ const Stock: React.FC = () => {
                 placeholder="Enter item name"
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Category *</Text>
-              <TouchableOpacity
+              <TextInput
                 style={styles.formInput}
-                onPress={() => {
-                  Alert.alert("Select Category", "", 
-                    categories.map(cat => ({
-                      text: cat,
-                      onPress: () => handleFormChange('category', cat)
-                    }))
-                  );
-                }}
-              >
-                <Text>{formData.category || "Select a category"}</Text>
-                <Ionicons name="chevron-down" size={16} />
-              </TouchableOpacity>
+                value={formData.category}
+                onChangeText={(text) => handleFormChange('category', text)}
+                placeholder="Enter category"
+              />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Department</Text>
-              <TouchableOpacity
+              <TextInput
                 style={styles.formInput}
-                onPress={() => {
-                  Alert.alert("Select Department", "", 
-                    departments.map(dept => ({
-                      text: dept,
-                      onPress: () => handleFormChange('department', dept)
-                    }))
-                  );
-                }}
-              >
-                <Text>{formData.department || "Select a department"}</Text>
-                <Ionicons name="chevron-down" size={16} />
-              </TouchableOpacity>
+                value={formData.department}
+                onChangeText={(text) => handleFormChange('department', text)}
+                placeholder="Enter department"
+              />
             </View>
-            
             <View style={styles.formRow}>
-              <View style={[styles.formGroup, {flex: 1, marginRight: 8}]}>
+              <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
                 <Text style={styles.formLabel}>Quantity *</Text>
                 <TextInput
                   style={styles.formInput}
@@ -860,8 +816,8 @@ const Stock: React.FC = () => {
                   placeholder="0"
                 />
               </View>
-              
-              <View style={[styles.formGroup, {flex: 1, marginLeft: 8}]}>
+
+              <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={styles.formLabel}>Min Threshold</Text>
                 <TextInput
                   style={styles.formInput}
@@ -872,10 +828,8 @@ const Stock: React.FC = () => {
                 />
               </View>
             </View>
-            
-            // ... continuing from where the code ended:
             <View style={styles.formRow}>
-              <View style={[styles.formGroup, {flex: 1, marginRight: 8}]}>
+              <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
                 <Text style={styles.formLabel}>Manufacturer</Text>
                 <TextInput
                   style={styles.formInput}
@@ -884,8 +838,8 @@ const Stock: React.FC = () => {
                   placeholder="Enter manufacturer"
                 />
               </View>
-              
-              <View style={[styles.formGroup, {flex: 1, marginLeft: 8}]}>
+
+              <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={styles.formLabel}>Model</Text>
                 <TextInput
                   style={styles.formInput}
@@ -902,10 +856,10 @@ const Stock: React.FC = () => {
                 style={styles.formInput}
                 onPress={() => {
                   Alert.alert("Select Status", "", [
-                    {text: "Available", onPress: () => handleFormChange('status', 'Available')},
-                    {text: "Limited", onPress: () => handleFormChange('status', 'Limited')},
-                    {text: "Out of Stock", onPress: () => handleFormChange('status', 'Out of Stock')},
-                    {text: "Reserved", onPress: () => handleFormChange('status', 'Reserved')},
+                    { text: "Available", onPress: () => handleFormChange('status', 'Available') },
+                    { text: "Limited", onPress: () => handleFormChange('status', 'Limited') },
+                    { text: "Out of Stock", onPress: () => handleFormChange('status', 'Out of Stock') },
+                    { text: "Reserved", onPress: () => handleFormChange('status', 'Reserved') },
                   ]);
                 }}
               >
@@ -913,7 +867,7 @@ const Stock: React.FC = () => {
                 <Ionicons name="chevron-down" size={16} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Location</Text>
               <TextInput
@@ -923,7 +877,7 @@ const Stock: React.FC = () => {
                 placeholder="Enter storage location"
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Notes</Text>
               <TextInput
@@ -936,7 +890,7 @@ const Stock: React.FC = () => {
               />
             </View>
           </ScrollView>
-          
+
           <View style={styles.modalActions}>
             <TouchableOpacity
               style={styles.cancelButton}
@@ -944,7 +898,7 @@ const Stock: React.FC = () => {
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.saveButton}
               onPress={handleAddStock}
@@ -967,7 +921,7 @@ const Stock: React.FC = () => {
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <Text style={styles.modalTitle}>Edit Inventory Item</Text>
-          
+
           <ScrollView style={styles.formContainer}>
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Item Name *</Text>
@@ -978,45 +932,29 @@ const Stock: React.FC = () => {
                 placeholder="Enter item name"
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Category *</Text>
-              <TouchableOpacity
+              <TextInput
                 style={styles.formInput}
-                onPress={() => {
-                  Alert.alert("Select Category", "", 
-                    categories.map(cat => ({
-                      text: cat,
-                      onPress: () => handleFormChange('category', cat)
-                    }))
-                  );
-                }}
-              >
-                <Text>{formData.category || "Select a category"}</Text>
-                <Ionicons name="chevron-down" size={16} />
-              </TouchableOpacity>
+                value={formData.category}
+                onChangeText={(text) => handleFormChange('category', text)}
+                placeholder="Enter category"
+              />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Department</Text>
-              <TouchableOpacity
+              <TextInput
                 style={styles.formInput}
-                onPress={() => {
-                  Alert.alert("Select Department", "", 
-                    departments.map(dept => ({
-                      text: dept,
-                      onPress: () => handleFormChange('department', dept)
-                    }))
-                  );
-                }}
-              >
-                <Text>{formData.department || "Select a department"}</Text>
-                <Ionicons name="chevron-down" size={16} />
-              </TouchableOpacity>
+                value={formData.department}
+                onChangeText={(text) => handleFormChange('department', text)}
+                placeholder="Enter department"
+              />
             </View>
-            
+
             <View style={styles.formRow}>
-              <View style={[styles.formGroup, {flex: 1, marginRight: 8}]}>
+              <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
                 <Text style={styles.formLabel}>Quantity *</Text>
                 <TextInput
                   style={styles.formInput}
@@ -1026,8 +964,8 @@ const Stock: React.FC = () => {
                   placeholder="0"
                 />
               </View>
-              
-              <View style={[styles.formGroup, {flex: 1, marginLeft: 8}]}>
+
+              <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={styles.formLabel}>Min Threshold</Text>
                 <TextInput
                   style={styles.formInput}
@@ -1038,9 +976,9 @@ const Stock: React.FC = () => {
                 />
               </View>
             </View>
-            
+
             <View style={styles.formRow}>
-              <View style={[styles.formGroup, {flex: 1, marginRight: 8}]}>
+              <View style={[styles.formGroup, { flex: 1, marginRight: 8 }]}>
                 <Text style={styles.formLabel}>Manufacturer</Text>
                 <TextInput
                   style={styles.formInput}
@@ -1049,8 +987,8 @@ const Stock: React.FC = () => {
                   placeholder="Enter manufacturer"
                 />
               </View>
-              
-              <View style={[styles.formGroup, {flex: 1, marginLeft: 8}]}>
+
+              <View style={[styles.formGroup, { flex: 1, marginLeft: 8 }]}>
                 <Text style={styles.formLabel}>Model</Text>
                 <TextInput
                   style={styles.formInput}
@@ -1067,10 +1005,10 @@ const Stock: React.FC = () => {
                 style={styles.formInput}
                 onPress={() => {
                   Alert.alert("Select Status", "", [
-                    {text: "Available", onPress: () => handleFormChange('status', 'Available')},
-                    {text: "Limited", onPress: () => handleFormChange('status', 'Limited')},
-                    {text: "Out of Stock", onPress: () => handleFormChange('status', 'Out of Stock')},
-                    {text: "Reserved", onPress: () => handleFormChange('status', 'Reserved')},
+                    { text: "Available", onPress: () => handleFormChange('status', 'Available') },
+                    { text: "Limited", onPress: () => handleFormChange('status', 'Limited') },
+                    { text: "Out of Stock", onPress: () => handleFormChange('status', 'Out of Stock') },
+                    { text: "Reserved", onPress: () => handleFormChange('status', 'Reserved') },
                   ]);
                 }}
               >
@@ -1078,7 +1016,7 @@ const Stock: React.FC = () => {
                 <Ionicons name="chevron-down" size={16} />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Location</Text>
               <TextInput
@@ -1088,7 +1026,7 @@ const Stock: React.FC = () => {
                 placeholder="Enter storage location"
               />
             </View>
-            
+
             <View style={styles.formGroup}>
               <Text style={styles.formLabel}>Notes</Text>
               <TextInput
@@ -1101,7 +1039,7 @@ const Stock: React.FC = () => {
               />
             </View>
           </ScrollView>
-          
+
           <View style={styles.modalActions}>
             <TouchableOpacity
               style={styles.cancelButton}
@@ -1112,7 +1050,7 @@ const Stock: React.FC = () => {
             >
               <Text style={styles.cancelButtonText}>Cancel</Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={styles.saveButton}
               onPress={handleUpdateStock}
@@ -1145,16 +1083,16 @@ const Stock: React.FC = () => {
       </View>
 
       <View style={styles.tabsContainer}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.tab, 
+            styles.tab,
             tabValue === 0 ? styles.activeTab : {}
           ]}
           onPress={() => setTabValue(0)}
         >
-          <Ionicons 
-            name="cube-outline" 
-            size={20} 
+          <Ionicons
+            name="cube-outline"
+            size={20}
             color={tabValue === 0 ? "#2196F3" : "#757575"}
           />
           <Text style={[
@@ -1164,10 +1102,10 @@ const Stock: React.FC = () => {
             Inventory
           </Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={[
-            styles.tab, 
+            styles.tab,
             tabValue === 1 ? styles.activeTab : {}
           ]}
           onPress={() => {
@@ -1176,8 +1114,8 @@ const Stock: React.FC = () => {
             fetchStockHistory();
           }}
         >
-          <Ionicons 
-            name="time-outline" 
+          <Ionicons
+            name="time-outline"
             size={20}
             color={tabValue === 1 ? "#2196F3" : "#757575"}
           />
@@ -1191,16 +1129,16 @@ const Stock: React.FC = () => {
       </View>
 
       {tabValue === 0 ? renderInventoryTab() : renderHistoryTab()}
-      
+
       {renderAddDialog()}
       {renderEditDialog()}
-      
+
       {snackbarVisible && (
         <View style={[
           styles.snackbar,
           snackbarType === 'success' ? styles.successSnackbar :
-          snackbarType === 'error' ? styles.errorSnackbar :
-          styles.infoSnackbar
+            snackbarType === 'error' ? styles.errorSnackbar :
+              styles.infoSnackbar
         ]}>
           <Text style={styles.snackbarText}>{snackbarMessage}</Text>
         </View>
@@ -1640,18 +1578,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 8,
   },
-  historyUser: {
-    flex: 1,
-    fontSize: 12,
-    color: '#424242',
-    paddingHorizontal: 8,
-  },
-  historyNotes: {
-    flex: 1,
-    fontSize: 12,
-    color: '#757575',
-    paddingHorizontal: 8,
-  }
+
 });
 
 export default Stock;

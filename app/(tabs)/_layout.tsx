@@ -9,7 +9,6 @@ export default function RootLayout() {
         headerShown: false,  // This hides the header completely
         title: '',           // This removes any title text
         headerStyle: {
-          height: 0
         },
         contentStyle: {
           backgroundColor: 'transparent'

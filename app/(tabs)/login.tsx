@@ -75,7 +75,7 @@ export default function LoginScreen() {
       // User found, navigate to appropriate dashboard
       if (selectedType === 'headOfficer') {
         router.replace('/dashboard');
-      } else {
+      } else if(selectedType === 'officer') {
         router.replace('/dashboardOfficer');
       }
       
